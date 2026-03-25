@@ -1,3 +1,4 @@
+import { Notice } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -6,6 +7,16 @@ import { getTheme } from "./themes";
 import type { TerminalPluginSettings } from "./settings";
 import type { BinaryManager } from "./binary-manager";
 
+export const TAB_COLORS = [
+  { name: "None", value: "" },
+  { name: "Red", value: "#e54d4d" },
+  { name: "Orange", value: "#e8a838" },
+  { name: "Yellow", value: "#e5d74e" },
+  { name: "Green", value: "#4ec955" },
+  { name: "Blue", value: "#4e9de5" },
+  { name: "Purple", value: "#b04ee5" },
+] as const;
+
 export interface TerminalSession {
   id: string;
   name: string;
@@ -13,9 +24,31 @@ export interface TerminalSession {
   fitAddon: FitAddon;
   pty: PtyManager;
   containerEl: HTMLElement;
+  color: string;
+  commandRunning: boolean;
 }
 
 let sessionCounter = 0;
+
+/** Play a short notification beep via the Web Audio API. */
+function playNotificationSound(): void {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.value = 0.3;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.stop(ctx.currentTime + 0.15);
+    setTimeout(() => ctx.close(), 200);
+  } catch {
+    // Audio not available — silently ignore
+  }
+}
 
 export class TerminalTabManager {
   private sessions: TerminalSession[] = [];
@@ -72,12 +105,29 @@ export class TerminalTabManager {
     terminal.open(containerEl);
 
     const pty = new PtyManager(this.pluginDir);
-    const session: TerminalSession = { id, name, terminal, fitAddon, pty, containerEl };
+    const session: TerminalSession = {
+      id, name, terminal, fitAddon, pty, containerEl, color: "", commandRunning: false,
+    };
     this.sessions.push(session);
     this.switchTab(id);
     this.renderTabBar();
 
-    // Defer PTY spawn until after DOM layout + fit so cols/rows are correct.
+    // Register OSC 133 handler for shell integration (command detection)
+    terminal.parser.registerOscHandler(133, (data: string) => {
+      if (data.startsWith("B")) {
+        // Command is about to execute
+        session.commandRunning = true;
+      } else if (data.startsWith("D")) {
+        // Command finished — notify if this tab is in the background
+        if (session.commandRunning && session.id !== this.activeId) {
+          const exitCode = parseInt(data.split(";")[1], 10) || 0;
+          this.notifyCompletion(session, exitCode);
+        }
+        session.commandRunning = false;
+      }
+      return false; // don't consume — let xterm handle it
+    });
+
     // Defer PTY spawn until DOM is laid out so fitAddon gets correct dimensions
     setTimeout(() => {
       try {
@@ -124,6 +174,13 @@ export class TerminalTabManager {
 
   switchTab(id: string): void {
     this.activeId = id;
+
+    // Clear blink notification on the tab being switched to
+    const idx = this.sessions.findIndex((s) => s.id === id);
+    if (idx >= 0) {
+      const tabs = this.tabBarEl.querySelectorAll(".terminal-tab");
+      if (tabs[idx]) tabs[idx].classList.remove("terminal-tab-blink");
+    }
 
     for (const session of this.sessions) {
       if (session.id === id) {
@@ -199,6 +256,29 @@ export class TerminalTabManager {
     this.activeId = null;
   }
 
+  private notifyCompletion(session: TerminalSession, exitCode: number): void {
+    const mode = this.settings.notifyOnCompletion;
+    if (mode === "off") return;
+
+    const status = exitCode === 0 ? "done" : `exit ${exitCode}`;
+
+    if (mode === "blink" || mode === "both") {
+      // Find the tab element and add blink class
+      const tabs = this.tabBarEl.querySelectorAll(".terminal-tab");
+      const idx = this.sessions.indexOf(session);
+      if (idx >= 0 && tabs[idx]) {
+        tabs[idx].classList.add("terminal-tab-blink");
+      }
+    }
+
+    if (mode === "sound" || mode === "both") {
+      playNotificationSound();
+    }
+
+    // Always show an Obsidian notice for background completions
+    new Notice(`${session.name}: ${status}`);
+  }
+
   private renameTab(id: string, labelEl: HTMLElement): void {
     const session = this.sessions.find((s) => s.id === id);
     if (!session) return;
@@ -230,6 +310,59 @@ export class TerminalTabManager {
     });
   }
 
+  private showTabContextMenu(e: MouseEvent, sessionId: string, labelEl: HTMLElement): void {
+    const session = this.sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+
+    // Remove any existing context menu
+    document.querySelector(".terminal-tab-context-menu")?.remove();
+
+    const menu = document.createElement("div");
+    menu.className = "terminal-tab-context-menu";
+    menu.style.left = `${e.pageX}px`;
+    menu.style.top = `${e.pageY}px`;
+
+    // Rename option
+    const renameItem = menu.createDiv({ cls: "terminal-ctx-item", text: "Rename" });
+    renameItem.addEventListener("click", () => {
+      menu.remove();
+      this.renameTab(sessionId, labelEl);
+    });
+
+    // Color submenu
+    const colorLabel = menu.createDiv({ cls: "terminal-ctx-item terminal-ctx-color-label", text: "Color" });
+    const colorRow = menu.createDiv({ cls: "terminal-ctx-color-row" });
+
+    for (const c of TAB_COLORS) {
+      const swatch = colorRow.createDiv({ cls: "terminal-ctx-swatch" });
+      if (c.value) {
+        swatch.style.background = c.value;
+      } else {
+        swatch.classList.add("terminal-ctx-swatch-none");
+      }
+      if (session.color === c.value) {
+        swatch.classList.add("active");
+      }
+      swatch.title = c.name;
+      swatch.addEventListener("click", () => {
+        session.color = c.value;
+        this.renderTabBar();
+        menu.remove();
+      });
+    }
+
+    document.body.appendChild(menu);
+
+    // Close on click outside
+    const close = (evt: MouseEvent) => {
+      if (!menu.contains(evt.target as Node)) {
+        menu.remove();
+        document.removeEventListener("click", close, true);
+      }
+    };
+    setTimeout(() => document.addEventListener("click", close, true), 0);
+  }
+
   private renderTabBar(): void {
     this.tabBarEl.empty();
 
@@ -238,12 +371,17 @@ export class TerminalTabManager {
         cls: `terminal-tab ${session.id === this.activeId ? "active" : ""}`,
       });
 
+      // Apply tab color as left border
+      if (session.color) {
+        tab.style.borderLeft = `3px solid ${session.color}`;
+      }
+
       const label = tab.createSpan({ cls: "terminal-tab-label", text: session.name });
       tab.addEventListener("click", () => this.switchTab(session.id));
       tab.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this.renameTab(session.id, label);
+        this.showTabContextMenu(e, session.id, label);
       });
 
       const closeBtn = tab.createSpan({ cls: "terminal-tab-close", text: "\u00d7" });

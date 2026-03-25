@@ -2,6 +2,8 @@ import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type TerminalPlugin from "./main";
 import { THEME_NAMES } from "./themes";
 
+export type NotifyMode = "off" | "blink" | "sound" | "both";
+
 export interface TerminalPluginSettings {
   shellPath: string;
   fontSize: number;
@@ -10,6 +12,7 @@ export interface TerminalPluginSettings {
   cursorBlink: boolean;
   scrollback: number;
   defaultLocation: "right" | "bottom";
+  notifyOnCompletion: NotifyMode;
 }
 
 export const DEFAULT_SETTINGS: TerminalPluginSettings = {
@@ -20,6 +23,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   cursorBlink: true,
   scrollback: 5000,
   defaultLocation: "bottom",
+  notifyOnCompletion: "blink",
 };
 
 export class TerminalSettingTab extends PluginSettingTab {
@@ -176,6 +180,24 @@ export class TerminalSettingTab extends PluginSettingTab {
         dropdown.setValue(this.plugin.settings.defaultLocation);
         dropdown.onChange(async (value: string) => {
           this.plugin.settings.defaultLocation = value as "right" | "bottom";
+          await this.plugin.saveSettings();
+        });
+      });
+
+    // --- Notifications ---
+    containerEl.createEl("h3", { text: "Notifications" });
+
+    new Setting(containerEl)
+      .setName("Notify on command completion")
+      .setDesc("Alert when a command finishes in a background tab (requires shell integration)")
+      .addDropdown((dropdown) => {
+        dropdown.addOption("off", "Off");
+        dropdown.addOption("blink", "Blink tab");
+        dropdown.addOption("sound", "Sound");
+        dropdown.addOption("both", "Blink + Sound");
+        dropdown.setValue(this.plugin.settings.notifyOnCompletion);
+        dropdown.onChange(async (value: string) => {
+          this.plugin.settings.notifyOnCompletion = value as NotifyMode;
           await this.plugin.saveSettings();
         });
       });

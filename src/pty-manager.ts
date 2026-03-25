@@ -1,4 +1,5 @@
 import { Platform } from "obsidian";
+import { getShellIntegration } from "./shell-integration";
 
 // node-pty is loaded at runtime via Electron's require, not bundled by esbuild.
 function loadNodePty(pluginDir: string): any {
@@ -82,10 +83,15 @@ export class PtyManager {
 
     const shell = shellPath || getDefaultShell();
     validateShellPath(shell);
-    const args = getShellArgs(shell);
+    const baseArgs = getShellArgs(shell);
+
+    // Inject shell integration hooks (OSC 133 sequences)
+    const si = getShellIntegration(shell, this.pluginDir);
+    const args = si.args.length > 0 ? si.args : baseArgs;
 
     const ptyEnv = {
       ...process.env,
+      ...si.env,
       ...env,
     };
 
