@@ -167,7 +167,7 @@ export class BinaryManager {
       const platform = process.platform;
       const arch = process.arch;
       const assetName = `node-pty-${platform}-${arch}.zip`;
-      const tag = `v${version}`;
+      const tag = version;
       const baseUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${tag}`;
 
       // Download checksums
