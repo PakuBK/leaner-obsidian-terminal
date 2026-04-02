@@ -26,7 +26,7 @@ export class TerminalView extends ItemView {
     return ICON_TERMINAL;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
+  // eslint-disable-next-line @typescript-eslint/require-await -- onOpen must satisfy Promise<void> return type of parent ItemView; no actual async work here
   async onOpen(): Promise<void> {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
@@ -76,7 +76,7 @@ export class TerminalView extends ItemView {
     this.resizeObserver.observe(terminalHostEl);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
+  // eslint-disable-next-line @typescript-eslint/require-await -- onClose must satisfy Promise<void> return type of parent ItemView; no actual async work here
   async onClose(): Promise<void> {
     if (this.resizeTimer) clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();

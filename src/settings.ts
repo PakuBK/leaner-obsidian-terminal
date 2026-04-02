@@ -94,7 +94,7 @@ export class TerminalSettingTab extends PluginSettingTab {
           .setButtonText("Remove")
           .setDisabled(status !== "ready")
           .onClick(async () => {
-            await bm.remove();
+            bm.remove();
             new Notice("Terminal binaries removed.");
             this.display();
           });
@@ -105,7 +105,7 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Shell path")
-      .setDesc("Leave empty for auto-detect (PowerShell on Windows, $SHELL on macOS/Linux)")
+      .setDesc("Leave empty for auto-detect (PowerShell on Windows, $SHELL on macOS/Linux).")
       .addText((text) =>
         text
           .setPlaceholder("Auto-detect")
