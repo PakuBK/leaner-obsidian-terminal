@@ -1,9 +1,7 @@
 import { FileSystemAdapter, Plugin, WorkspaceLeaf, setIcon } from "obsidian";
 import { VIEW_TYPE_TERMINAL } from "./constants";
 import { TerminalView } from "./terminal-view";
-import { TerminalSettingTab } from "./settings";
-import { DEFAULT_SETTINGS } from "./settings";
-import type { TerminalPluginSettings } from "./settings";
+import { TerminalSettingTab, DEFAULT_SETTINGS, type TerminalPluginSettings } from "./settings";
 import { BinaryManager } from "./binary-manager";
 
 export default class TerminalPlugin extends Plugin {
@@ -143,11 +141,12 @@ export default class TerminalPlugin extends Plugin {
   }
 
   updateIcon(name: string): void {
-    if (this.ribbonEl) setIcon(this.ribbonEl, name);
+    const safeName = name || "terminal";
+    if (this.ribbonEl) setIcon(this.ribbonEl, safeName);
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_TERMINAL)) {
       // leaf.tabHeaderInnerIconEl is undocumented but stable across Obsidian versions
       const iconEl = (leaf as any).tabHeaderInnerIconEl as HTMLElement | undefined;
-      if (iconEl) setIcon(iconEl, name);
+      if (iconEl) setIcon(iconEl, safeName);
     }
   }
 }

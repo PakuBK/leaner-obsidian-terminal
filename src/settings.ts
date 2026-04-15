@@ -170,7 +170,7 @@ export class TerminalSettingTab extends PluginSettingTab {
           this.plugin.settings.ribbonIcon = name;
           await this.plugin.saveSettings();
           this.plugin.updateIcon(name);
-          if (previewEl) setIcon(previewEl, name);
+          if (previewEl) setIcon(previewEl, name || "terminal");
         });
     });
 
@@ -179,9 +179,9 @@ export class TerminalSettingTab extends PluginSettingTab {
 
     iconSetting.addButton((btn) => {
       btn.setButtonText("Reset").onClick(async () => {
-        this.plugin.settings.ribbonIcon = "terminal";
+        this.plugin.settings.ribbonIcon = DEFAULT_SETTINGS.ribbonIcon;
         await this.plugin.saveSettings();
-        this.plugin.updateIcon("terminal");
+        this.plugin.updateIcon(DEFAULT_SETTINGS.ribbonIcon);
         this.display();
       });
     });
