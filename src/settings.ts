@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, Setting, ColorComponent } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting, ColorComponent, setIcon } from "obsidian";
 import type TerminalPlugin from "./main";
 import { THEME_NAMES } from "./themes";
 
@@ -155,6 +155,36 @@ export class TerminalSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         });
       });
+
+    const iconSetting = new Setting(containerEl)
+      .setName("Icon")
+      .setDesc("Enter a Lucide icon name (e.g. \"terminal\", \"code-2\", \"zap\"). Browse icons at lucide.dev.");
+
+    let previewEl: HTMLElement | null = null;
+
+    iconSetting.addText((text) => {
+      text
+        .setValue(this.plugin.settings.ribbonIcon)
+        .onChange(async (value) => {
+          const name = value.trim();
+          this.plugin.settings.ribbonIcon = name;
+          await this.plugin.saveSettings();
+          this.plugin.updateIcon(name);
+          if (previewEl) setIcon(previewEl, name);
+        });
+    });
+
+    previewEl = iconSetting.controlEl.createSpan({ cls: "lean-terminal-icon-preview" });
+    setIcon(previewEl, this.plugin.settings.ribbonIcon);
+
+    iconSetting.addButton((btn) => {
+      btn.setButtonText("Reset").onClick(async () => {
+        this.plugin.settings.ribbonIcon = "terminal";
+        await this.plugin.saveSettings();
+        this.plugin.updateIcon("terminal");
+        this.display();
+      });
+    });
 
     const bgSetting = new Setting(containerEl)
       .setName("Background color")
