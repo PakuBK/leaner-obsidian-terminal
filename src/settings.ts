@@ -12,6 +12,7 @@ export interface TerminalPluginSettings {
   backgroundColor: string;
   cursorBlink: boolean;
   scrollback: number;
+  ribbonIcon: string;
   defaultLocation: "right" | "bottom";
   notifyOnCompletion: boolean;
   notificationSound: NotificationSound;
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: TerminalPluginSettings = {
   backgroundColor: "",
   cursorBlink: true,
   scrollback: 5000,
+  ribbonIcon: "terminal",
   defaultLocation: "bottom",
   notifyOnCompletion: false,
   notificationSound: "beep",
